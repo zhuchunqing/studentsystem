@@ -1,0 +1,132 @@
+-- Student Education Management System - Database Schema
+-- MySQL 8.0+
+
+CREATE DATABASE IF NOT EXISTS student_edu DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+USE student_edu;
+
+-- 院系表
+CREATE TABLE IF NOT EXISTS department (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL COMMENT '院系名称',
+    parent_id BIGINT DEFAULT NULL COMMENT '上级院系ID',
+    dean VARCHAR(50) DEFAULT NULL COMMENT '院系负责人',
+    description TEXT DEFAULT NULL COMMENT '院系描述',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES department(id) ON DELETE SET NULL
+) COMMENT='院系表';
+
+-- 教师表
+CREATE TABLE IF NOT EXISTS teacher (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL COMMENT '姓名',
+    employee_no VARCHAR(30) NOT NULL UNIQUE COMMENT '工号',
+    department_id BIGINT DEFAULT NULL COMMENT '所属院系',
+    title VARCHAR(30) DEFAULT NULL COMMENT '职称',
+    phone VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+    email VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '1在职/0离职',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (department_id) REFERENCES department(id) ON DELETE SET NULL
+) COMMENT='教师表';
+
+-- 班级表
+CREATE TABLE IF NOT EXISTS class (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL COMMENT '班级名称',
+    department_id BIGINT DEFAULT NULL COMMENT '所属院系',
+    advisor_id BIGINT DEFAULT NULL COMMENT '班主任',
+    grade VARCHAR(10) NOT NULL COMMENT '年级',
+    major VARCHAR(100) DEFAULT NULL COMMENT '专业方向',
+    student_count INT DEFAULT 0 COMMENT '学生人数',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (department_id) REFERENCES department(id) ON DELETE SET NULL,
+    FOREIGN KEY (advisor_id) REFERENCES teacher(id) ON DELETE SET NULL
+) COMMENT='班级表';
+
+-- 学生表
+CREATE TABLE IF NOT EXISTS student (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL COMMENT '姓名',
+    student_no VARCHAR(30) NOT NULL UNIQUE COMMENT '学号',
+    class_id BIGINT DEFAULT NULL COMMENT '所属班级',
+    gender TINYINT DEFAULT NULL COMMENT '1男/2女',
+    enrollment_date DATE NOT NULL COMMENT '入学日期',
+    phone VARCHAR(20) DEFAULT NULL COMMENT '联系电话',
+    email VARCHAR(100) DEFAULT NULL COMMENT '邮箱',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '1在读/0休学/2毕业',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (class_id) REFERENCES class(id) ON DELETE SET NULL
+) COMMENT='学生表';
+
+-- 课程表
+CREATE TABLE IF NOT EXISTS course (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL COMMENT '课程名称',
+    code VARCHAR(30) NOT NULL UNIQUE COMMENT '课程编码',
+    teacher_id BIGINT DEFAULT NULL COMMENT '授课教师',
+    department_id BIGINT DEFAULT NULL COMMENT '开课院系',
+    credit INT NOT NULL COMMENT '学分',
+    hours INT NOT NULL COMMENT '学时',
+    course_type TINYINT NOT NULL COMMENT '1必修/2选修/3公选',
+    semester VARCHAR(20) NOT NULL COMMENT '开课学期',
+    max_students INT DEFAULT 100 COMMENT '最大选课人数',
+    description TEXT DEFAULT NULL COMMENT '课程描述',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '1开课/0停课',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (teacher_id) REFERENCES teacher(id) ON DELETE SET NULL,
+    FOREIGN KEY (department_id) REFERENCES department(id) ON DELETE SET NULL
+) COMMENT='课程表';
+
+-- 成绩表
+CREATE TABLE IF NOT EXISTS score (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    student_id BIGINT NOT NULL COMMENT '学生',
+    course_id BIGINT NOT NULL COMMENT '课程',
+    score_value DECIMAL(5,2) DEFAULT NULL COMMENT '分数',
+    grade_level VARCHAR(10) DEFAULT NULL COMMENT '等级',
+    semester VARCHAR(20) NOT NULL COMMENT '学期',
+    score_type TINYINT NOT NULL DEFAULT 1 COMMENT '1期末/2补考/3重修',
+    is_passed TINYINT DEFAULT 0 COMMENT '1及格/0不及格',
+    remark VARCHAR(200) DEFAULT NULL COMMENT '备注',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES student(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_score (student_id, course_id, semester, score_type)
+) COMMENT='成绩表';
+
+-- 选课记录表
+CREATE TABLE IF NOT EXISTS course_selection (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    student_id BIGINT NOT NULL COMMENT '学生',
+    course_id BIGINT NOT NULL COMMENT '课程',
+    semester VARCHAR(20) NOT NULL COMMENT '学期',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '1已选/0退选',
+    selected_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '选课时间',
+    dropped_at DATETIME DEFAULT NULL COMMENT '退选时间',
+    FOREIGN KEY (student_id) REFERENCES student(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE,
+    UNIQUE KEY uk_selection (student_id, course_id, semester)
+) COMMENT='选课记录表';
+
+-- 用户表
+CREATE TABLE IF NOT EXISTS sys_user (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE COMMENT '用户名',
+    password_hash VARCHAR(255) NOT NULL COMMENT '密码哈希',
+    role VARCHAR(20) NOT NULL COMMENT '角色: admin/teacher/student',
+    ref_id BIGINT DEFAULT NULL COMMENT '关联业务表ID',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '1启用/0禁用',
+    last_login_at DATETIME DEFAULT NULL COMMENT '最后登录时间',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) COMMENT='用户表';
+
+-- 初始化管理员账号 (密码: admin123)
+INSERT INTO sys_user (username, password_hash, role, status) VALUES
+('admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', 'admin', 1);
