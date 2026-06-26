@@ -1,5 +1,5 @@
 import { del, get, post, put } from '@/utils/request'
-import type { ClassOption, Clazz, PageQuery, PageResult, Student } from '@/types'
+import type { ClassOption, Clazz, PageQuery, PageResult } from '@/types'
 
 export interface ClassQuery extends PageQuery {
   departmentId?: number
@@ -26,11 +26,8 @@ export function deleteClass(id: number): Promise<void> {
   return del<void>(`/classes/${id}`)
 }
 
-export function getClassStudents(id: number): Promise<Student[]> {
-  return get<Student[]>(`/classes/${id}/students`)
-}
-
-/** 下拉选项（前端用，复用列表接口） */
-export function getClassOptions(): Promise<ClassOption[]> {
-  return get<ClassOption[]>('/classes/options')
+/** 获取班级下拉选项（前端从分页列表中提取） */
+export async function getClassOptions(): Promise<ClassOption[]> {
+  const page = await getClasses({ pageSize: 999 })
+  return page.list.map(c => ({ id: c.id, name: c.name }))
 }

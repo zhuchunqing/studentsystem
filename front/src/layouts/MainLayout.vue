@@ -200,8 +200,8 @@ async function handleCommand(cmd: string) {
 async function handlePasswordSubmit() {
   await passwordFormRef.value?.validate()
   await changePassword({
-    old_password: passwordForm.value.oldPassword,
-    new_password: passwordForm.value.newPassword
+    oldPassword: passwordForm.value.oldPassword,
+    newPassword: passwordForm.value.newPassword
   })
   ElMessage.success('密码修改成功')
   passwordVisible.value = false

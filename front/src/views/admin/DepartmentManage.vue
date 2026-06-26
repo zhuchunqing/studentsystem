@@ -8,8 +8,6 @@
       <el-table :data="treeData" row-key="id" default-expand-all v-loading="loading" stripe>
         <el-table-column prop="name" label="院系名称" min-width="200" />
         <el-table-column prop="dean" label="负责人" width="120" />
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="created_at" label="创建时间" width="180" />
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
@@ -22,10 +20,10 @@
 
     <el-dialog v-model="dialogVisible" :title="editingId ? '编辑院系' : '新增院系'" width="500px" @close="resetForm">
       <el-form :model="form" :rules="formRules" ref="formRef" label-width="80px">
-        <el-form-item label="上级院系" prop="parent_id">
+        <el-form-item label="上级院系" prop="parentId">
           <el-tree-select
-            v-model="form.parent_id"
-            :data="treeOptions"
+            v-model="form.parentId"
+            :data="treeData"
             :props="{ label: 'name', value: 'id', children: 'children' }"
             placeholder="顶级院系"
             clearable
@@ -54,61 +52,46 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-
-interface DeptNode {
-  id: number
-  name: string
-  parent_id: number | null
-  dean: string
-  description: string
-  created_at: string
-  children?: DeptNode[]
-}
+import { getDepartments, getDepartment, createDepartment, updateDepartment, deleteDepartment } from '@/api/department'
+import type { DepartmentTreeResponse } from '@/types'
 
 const loading = ref(false)
 const submitting = ref(false)
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
-const treeData = ref<DeptNode[]>([])
-const treeOptions = ref<DeptNode[]>([])
+const treeData = ref<DepartmentTreeResponse[]>([])
 
 interface DeptForm {
-  parent_id: number | null
+  parentId: number | null
   name: string
   dean: string
   description: string
 }
 
-const form = reactive<DeptForm>({ parent_id: null, name: '', dean: '', description: '' })
+const form = reactive<DeptForm>({ parentId: null, name: '', dean: '', description: '' })
 const formRules: FormRules<DeptForm> = {
   name: [{ required: true, message: '请输入院系名称', trigger: 'blur' }]
 }
 
-function fetchData() {
+async function fetchData() {
   loading.value = true
-  setTimeout(() => {
-    treeData.value = [
-      { id: 1, name: '信息工程学院', parent_id: null, dean: '王教授', description: '计算机、软件等学科', created_at: '2024-01-01', children: [
-        { id: 2, name: '计算机科学系', parent_id: 1, dean: '李教授', description: '计算机科学与技术', created_at: '2024-01-01' },
-        { id: 3, name: '软件工程系', parent_id: 1, dean: '赵教授', description: '软件工程', created_at: '2024-01-01' }
-      ]},
-      { id: 4, name: '经济管理学院', parent_id: null, dean: '钱教授', description: '经济学、管理学', created_at: '2024-01-01', children: [
-        { id: 5, name: '经济学系', parent_id: 4, dean: '孙教授', description: '经济学', created_at: '2024-01-01' }
-      ]}
-    ]
-    treeOptions.value = treeData.value
+  try {
+    treeData.value = await getDepartments()
+  } finally {
     loading.value = false
-  }, 300)
+  }
 }
 
-function openDialog(row?: DeptNode, parentId?: number) {
+async function openDialog(row?: DepartmentTreeResponse, parentId?: number) {
   if (row) {
     editingId.value = row.id
-    Object.assign(form, { parent_id: row.parent_id, name: row.name, dean: row.dean, description: row.description })
+    // 编辑时需获取完整实体（含 parentId、description）
+    const dept = await getDepartment(row.id)
+    Object.assign(form, { parentId: dept.parentId, name: dept.name, dean: dept.dean, description: dept.description || '' })
   } else {
     editingId.value = null
-    Object.assign(form, { parent_id: parentId || null, name: '', dean: '', description: '' })
+    Object.assign(form, { parentId: parentId || null, name: '', dean: '', description: '' })
   }
   dialogVisible.value = true
 }
@@ -120,16 +103,24 @@ function resetForm() {
 async function submitForm() {
   await formRef.value?.validate()
   submitting.value = true
-  setTimeout(() => {
-    ElMessage.success(editingId.value ? '修改成功' : '新增成功')
+  try {
+    if (editingId.value) {
+      await updateDepartment(editingId.value, { ...form })
+      ElMessage.success('修改成功')
+    } else {
+      await createDepartment({ ...form })
+      ElMessage.success('新增成功')
+    }
     dialogVisible.value = false
-    submitting.value = false
     fetchData()
-  }, 300)
+  } finally {
+    submitting.value = false
+  }
 }
 
-async function handleDelete(row: DeptNode) {
+async function handleDelete(row: DepartmentTreeResponse) {
   await ElMessageBox.confirm(`确定删除院系 "${row.name}"？`, '提示', { type: 'warning' })
+  await deleteDepartment(row.id)
   ElMessage.success('删除成功')
   fetchData()
 }

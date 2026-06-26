@@ -31,6 +31,8 @@ export function importStudents(data: Partial<Student>[]): Promise<Student[]> {
   return post<Student[]>('/students/import', data)
 }
 
-export function getStudentOptions(): Promise<StudentOption[]> {
-  return get<StudentOption[]>('/students/options')
+/** 获取学生下拉选项（前端从分页列表中提取） */
+export async function getStudentOptions(): Promise<StudentOption[]> {
+  const page = await getStudents({ pageSize: 999 })
+  return page.list.map(s => ({ id: s.id, name: s.name }))
 }

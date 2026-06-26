@@ -22,9 +22,12 @@ export interface Department {
   updatedAt: string
 }
 
-/** 院系树形结构 */
-export interface DepartmentTree extends Department {
-  children?: DepartmentTree[]
+/** 院系树形响应 DTO（后端 DepartmentTreeResponse） */
+export interface DepartmentTreeResponse {
+  id: number
+  name: string
+  dean: string
+  children: DepartmentTreeResponse[]
 }
 
 /** 院系下拉选项 */
@@ -39,7 +42,6 @@ export interface Teacher {
   name: string
   employeeNo: string
   departmentId: number
-  departmentName?: string
   title: string
   phone: string
   email: string
@@ -59,9 +61,7 @@ export interface Clazz {
   id: number
   name: string
   departmentId: number
-  departmentName?: string
   advisorId: number | null
-  advisorName?: string
   grade: string
   major: string
   studentCount: number
@@ -81,7 +81,6 @@ export interface Student {
   name: string
   studentNo: string
   classId: number
-  className?: string
   gender: Gender
   enrollmentDate: string
   phone: string
@@ -103,7 +102,6 @@ export interface Course {
   name: string
   code: string
   teacherId: number | null
-  teacherName?: string
   departmentId: number
   credit: number
   hours: number
@@ -122,12 +120,12 @@ export interface CourseOption {
   name: string
 }
 
-/** 成绩 */
+/** 成绩实体 */
 export interface Score {
   id: number
   studentId: number
   courseId: number
-  scoreValue: number
+  scoreValue: number | null
   gradeLevel: GradeLevel
   semester: string
   scoreType: ScoreType
@@ -137,28 +135,18 @@ export interface Score {
   updatedAt: string
 }
 
-/** 学生成绩查询响应（含课程信息） */
-export interface StudentScoreResponse {
-  id: number
-  studentNo: string
-  studentName: string
-  courseCode: string
-  courseName: string
-  courseType: string
-  credit: number
-  semester: string
-  usualScore: number | null
-  midtermScore: number | null
-  finalScore: number | null
-  totalScore: number | null
-  gradePoint: number | null
-  scoreLevel: string
-  isPassed: boolean
-  remark: string
+/** 成绩录入请求 */
+export interface ScoreRequest {
+  studentId: number
+  courseId: number
+  scoreValue?: number
+  semester?: string
+  scoreType?: ScoreType
+  remark?: string
 }
 
-/** 成绩录入记录 */
-export interface ScoreRecord {
+/** 批量录入成绩记录项 */
+export interface ScoreItem {
   studentId: number
   scoreValue: number
 }
@@ -168,18 +156,21 @@ export interface ScoreBatchRequest {
   courseId: number
   semester: string
   scoreType: ScoreType
-  records: ScoreRecord[]
+  records: ScoreItem[]
 }
 
-/** 成绩录入行（教师录入界面） */
-export interface ScoreInputRow {
-  studentNo: string
-  studentName: string
-  usualScore: number | null
-  midtermScore: number | null
-  finalScore: number | null
-  totalScore: number | null
-  gradePoint: number | null
+/** 学生成绩查询响应（后端 StudentScoreResponse DTO，含关联字段） */
+export interface StudentScoreResponse {
+  scoreId: number
+  studentName: string | null
+  studentNo: string | null
+  courseName: string | null
+  courseCode: string | null
+  scoreValue: number | null
+  gradeLevel: GradeLevel | null
+  semester: string
+  scoreType: ScoreType
+  isPassed: boolean
 }
 
 /** 成绩统计响应 */
@@ -189,7 +180,19 @@ export interface ScoreStatistics {
   maxScore: number
   minScore: number
   passRate: number
-  gradeDistribution: Record<GradeLevel, number>
+  gradeDistribution: Record<string, number>
+}
+
+/** 成绩录入行（教师录入界面，前端组装） */
+export interface ScoreInputRow {
+  studentId: number
+  studentNo: string
+  studentName: string
+  usualScore: number | null
+  midtermScore: number | null
+  finalScore: number | null
+  totalScore: number | null
+  gradePoint: number | null
 }
 
 /** 选课记录 */
@@ -210,7 +213,7 @@ export interface CourseSelectionRequest {
   semester: string
 }
 
-/** 选课中心课程行（学生视角） */
+/** 选课中心课程行（学生视角，前端组装） */
 export interface CourseSelectionRow {
   id: number
   code: string
@@ -235,52 +238,7 @@ export interface SysUser {
   createdAt: string
 }
 
-/** 用户管理表格行（后端返回 snake_case） */
-export interface SysUserRow {
-  id: number
-  username: string
-  role: UserRole
-  ref_id: number | null
-  status: CommonStatus
-  last_login_at: string
-  created_at: string
-}
-
-/** 毕业审核行 */
-export interface GraduationAuditRow {
-  id: number
-  student_no: string
-  name: string
-  major: string
-  total_credit: number
-  required_credit: number
-  required_passed: boolean
-  elective_credit: number
-  practice_credit: number
-  audit_result: '通过' | '未通过'
-}
-
-/** 缺修课程 */
-export interface MissingCourse {
-  code: string
-  name: string
-  credit: number
-  type: string
-}
-
-/** 成绩审核行 */
-export interface ScoreAuditRow {
-  id: number
-  teacher_name: string
-  course_name: string
-  semester: string
-  score_type: ScoreType
-  student_count: number
-  submit_time: string
-  audit_status: AuditStatus
-}
-
-/** 培养方案课程行 */
+/** 培养方案课程行（前端展示模型） */
 export interface PlanCourseRow {
   code: string
   name: string
@@ -288,4 +246,38 @@ export interface PlanCourseRow {
   semester?: string
   category?: string
   status: PlanCourseStatus
+}
+
+/** 缺修课程（前端展示模型） */
+export interface MissingCourse {
+  code: string
+  name: string
+  credit: number
+  type: string
+}
+
+/** 审核状态行（前端展示模型，用于成绩审核页面） */
+export interface ScoreAuditRow {
+  id: number
+  teacherName: string
+  courseName: string
+  semester: string
+  scoreType: ScoreType
+  studentCount: number
+  submitTime: string
+  auditStatus: AuditStatus
+}
+
+/** 毕业审核行（前端展示模型，后端暂无对应接口） */
+export interface GraduationAuditRow {
+  id: number
+  studentNo: string
+  name: string
+  major: string
+  totalCredit: number
+  requiredCredit: number
+  requiredPassed: boolean
+  electiveCredit: number
+  practiceCredit: number
+  auditResult: '通过' | '未通过'
 }

@@ -10,5 +10,6 @@ export function logout(): Promise<void> {
 }
 
 export function changePassword(data: ChangePasswordRequest): Promise<void> {
-  return put<void>('/auth/password', data)
+  // 后端使用 Query 参数接收 oldPassword / newPassword
+  return put<void>('/auth/password', undefined, { params: data })
 }

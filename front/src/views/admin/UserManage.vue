@@ -4,7 +4,7 @@
       <div class="toolbar">
         <el-form :inline="true" :model="queryForm">
           <el-form-item label="用户名">
-            <el-input v-model="queryForm.username" placeholder="搜索用户名" clearable />
+            <el-input v-model="queryForm.username" placeholder="搜索用户名" clearable @keyup.enter="fetchData" />
           </el-form-item>
           <el-form-item label="角色">
             <el-select v-model="queryForm.role" placeholder="全部" clearable>
@@ -29,34 +29,37 @@
 
       <el-table :data="tableData" stripe v-loading="loading">
         <el-table-column prop="username" label="用户名" width="140" />
-        <el-table-column prop="role" label="角色" width="100">
+        <el-table-column label="角色" width="100">
           <template #default="{ row }">
             <el-tag :type="roleTagMap[row.role as UserRole]">{{ roleLabelMap[row.role as UserRole] }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="ref_id" label="关联ID" width="100" />
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="refId" label="关联ID" width="100" />
+        <el-table-column label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'">{{ row.status === 1 ? '启用' : '禁用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="last_login_at" label="最后登录" width="180" />
-        <el-table-column prop="created_at" label="创建时间" width="180" />
+        <el-table-column prop="lastLoginAt" label="最后登录" width="180" />
+        <el-table-column prop="createdAt" label="创建时间" width="180" />
         <el-table-column label="操作" fixed="right" width="200">
           <template #default="{ row }">
             <el-button type="primary" link size="small" @click="openDialog(row)">编辑</el-button>
             <el-button :type="row.status === 1 ? 'danger' : 'success'" link size="small" @click="toggleStatus(row)">
               {{ row.status === 1 ? '禁用' : '启用' }}
             </el-button>
-            <el-button type="warning" link size="small" @click="resetPassword(row)">重置密码</el-button>
+            <el-button type="warning" link size="small" @click="handleResetPassword(row)">重置密码</el-button>
           </template>
         </el-table-column>
       </el-table>
 
+      <el-empty v-if="!loading && tableData.length === 0" description="暂无用户数据" />
+
       <el-pagination
+        v-if="total > 0"
         class="pagination"
-        v-model:current-page="queryForm.page"
-        v-model:page-size="queryForm.size"
+        v-model:current-page="queryForm.pageNum"
+        v-model:page-size="queryForm.pageSize"
         :total="total"
         :page-sizes="[10, 20, 50]"
         layout="total, sizes, prev, pager, next, jumper"
@@ -95,11 +98,24 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import type { SysUserRow, UserRole } from '@/types'
+
+// ===== 类型定义 =====
+interface SysUserRow {
+  id: number
+  username: string
+  role: 'admin' | 'teacher' | 'student'
+  refId: number | null
+  status: number
+  lastLoginAt: string
+  createdAt: string
+}
+
+type UserRole = 'admin' | 'teacher' | 'student'
 
 const roleTagMap: Record<UserRole, '' | 'danger' | 'warning'> = { admin: 'danger', teacher: 'warning', student: '' }
 const roleLabelMap: Record<UserRole, string> = { admin: '管理员', teacher: '教师', student: '学生' }
 
+// ===== 状态变量 =====
 const loading = ref(false)
 const submitting = ref(false)
 const dialogVisible = ref(false)
@@ -112,8 +128,8 @@ interface QueryForm {
   username: string
   role: string
   status: number | undefined
-  page: number
-  size: number
+  pageNum: number
+  pageSize: number
 }
 
 interface UserForm {
@@ -123,7 +139,7 @@ interface UserForm {
   status: number
 }
 
-const queryForm = reactive<QueryForm>({ username: '', role: '', status: undefined, page: 1, size: 10 })
+const queryForm = reactive<QueryForm>({ username: '', role: '', status: undefined, pageNum: 1, pageSize: 10 })
 const form = reactive<UserForm>({ username: '', password: '', role: 'student', status: 1 })
 const formRules: FormRules<UserForm> = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -131,29 +147,55 @@ const formRules: FormRules<UserForm> = {
   role: [{ required: true, message: '请选择角色', trigger: 'change' }]
 }
 
-// Mock data for demo
-function fetchData() {
+// ===== 模拟数据（后端暂无 UserController，使用本地模拟数据）=====
+const mockUsers: SysUserRow[] = [
+  { id: 1, username: 'admin',           role: 'admin',   refId: null,  status: 1, lastLoginAt: '2026-06-25 09:00', createdAt: '2024-01-01' },
+  { id: 2, username: 'zhangsan',        role: 'teacher', refId: 1001,  status: 1, lastLoginAt: '2026-06-24 16:30', createdAt: '2024-02-15' },
+  { id: 3, username: 'lisi',            role: 'student', refId: 2001,  status: 1, lastLoginAt: '2026-06-25 08:45', createdAt: '2024-09-01' },
+  { id: 4, username: 'wangwu',          role: 'student', refId: 2002,  status: 1, lastLoginAt: '2026-06-20 10:20', createdAt: '2024-09-01' },
+  { id: 5, username: 'zhaoliu',         role: 'student', refId: 2003,  status: 1, lastLoginAt: '2026-06-19 14:35', createdAt: '2024-09-01' },
+  { id: 6, username: 'wanglaoshi',      role: 'teacher', refId: 1002,  status: 0, lastLoginAt: '2026-05-01 11:00', createdAt: '2024-03-10' },
+  { id: 7, username: 'test_student',    role: 'student', refId: 2004,  status: 0, lastLoginAt: '2026-04-15 09:00', createdAt: '2025-09-01' }
+]
+
+async function fetchData() {
   loading.value = true
-  setTimeout(() => {
-    tableData.value = [
-      { id: 1, username: 'admin', role: 'admin', ref_id: null, status: 1, last_login_at: '2025-01-15 09:00', created_at: '2024-01-01' },
-      { id: 2, username: 'zhangsan', role: 'teacher', ref_id: 1001, status: 1, last_login_at: '2025-01-14 16:30', created_at: '2024-02-15' },
-      { id: 3, username: 'lisi', role: 'student', ref_id: 2001, status: 1, last_login_at: '2025-01-15 08:45', created_at: '2024-09-01' }
-    ]
-    total.value = 3
+  // 模拟网络延迟
+  await new Promise(r => setTimeout(r, 300))
+  try {
+    let list = [...mockUsers]
+    // 前端过滤
+    if (queryForm.status !== undefined) {
+      list = list.filter(u => u.status === queryForm.status)
+    }
+    if (queryForm.username) {
+      list = list.filter(u => u.username.includes(queryForm.username))
+    }
+    if (queryForm.role) {
+      list = list.filter(u => u.role === queryForm.role)
+    }
+    total.value = list.length
+    // 分页截取
+    const start = (queryForm.pageNum - 1) * queryForm.pageSize
+    const end = start + queryForm.pageSize
+    tableData.value = list.slice(start, end)
+  } finally {
     loading.value = false
-  }, 300)
+  }
 }
 
 function resetQuery() {
-  Object.assign(queryForm, { username: '', role: '', status: undefined, page: 1 })
+  Object.assign(queryForm, { username: '', role: '', status: undefined, pageNum: 1 })
   fetchData()
 }
 
 function openDialog(row?: SysUserRow) {
   if (row) {
     editingId.value = row.id
-    Object.assign(form, { username: row.username, role: row.role, status: row.status })
+    form.username = row.username
+    form.role = row.role
+    form.status = row.status
+    form.password = ''
   } else {
     editingId.value = null
     Object.assign(form, { username: '', password: '', role: 'student', status: 1 })
@@ -168,22 +210,26 @@ function resetForm() {
 async function submitForm() {
   await formRef.value?.validate()
   submitting.value = true
-  setTimeout(() => {
-    ElMessage.success(editingId.value ? '修改成功' : '新增成功')
-    dialogVisible.value = false
-    submitting.value = false
-    fetchData()
-  }, 300)
+  await new Promise(r => setTimeout(r, 300))
+  if (editingId.value) {
+    ElMessage.success('修改成功')
+  } else {
+    ElMessage.success('新增成功')
+  }
+  dialogVisible.value = false
+  submitting.value = false
+  fetchData()
 }
 
 async function toggleStatus(row: SysUserRow) {
   const action = row.status === 1 ? '禁用' : '启用'
   await ElMessageBox.confirm(`确定${action}用户 "${row.username}"？`, '提示', { type: 'warning' })
+  row.status = row.status === 1 ? 0 : 1
   ElMessage.success(`${action}成功`)
   fetchData()
 }
 
-async function resetPassword(row: SysUserRow) {
+async function handleResetPassword(row: SysUserRow) {
   await ElMessageBox.confirm(`确定重置用户 "${row.username}" 的密码？`, '提示', { type: 'warning' })
   ElMessage.success('密码已重置为默认密码')
 }

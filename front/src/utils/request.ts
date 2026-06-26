@@ -19,11 +19,14 @@ request.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 request.interceptors.response.use(
   response => {
-    // axios 默认将 response.data 类型推断为 any；
-    // 响应结构由后端 Result<T> 封装，类型安全由下方 get/post/put/del 泛型保证
-    const res = response.data as { code: number; message: string; data: unknown }
+    // Blob 响应（文件下载）直接返回，不走 Result 解包
+    if (response.config.responseType === 'blob') {
+      return response.data
+    }
+    // 响应结构由后端 Result<T> 封装；拦截器剥离外层后直接返回 data，
+    // 终端类型安全由下方 get/post/put/del 泛型包装函数保证
+    const res = response.data as { code: number; message: string; data: any }
     if (res.code === 200) {
-      // 拦截器剥离外层，直接返回 data 字段
       return res.data
     }
     ElMessage.error(res.message || '请求失败')
@@ -32,13 +35,20 @@ request.interceptors.response.use(
   error => {
     const resp = error.response
     if (resp) {
-      const code = resp.data?.code
       const msg = resp.data?.message
-      if (resp.status === 401 || code === 401) {
+      // 后端 token 过期/无效时返回 403，未登录时返回 401；两者都视为需要重新登录
+      const isLoginRequest = resp.config?.url?.includes('/auth/login')
+      if ((resp.status === 401 || resp.status === 403) && !isLoginRequest) {
         const userStore = useUserStore()
-        userStore.logout()
-        router.push('/login')
-        ElMessage.error('登录已过期，请重新登录')
+        if (userStore.token) {
+          // 有 token 但被拒绝 → token 过期
+          userStore.logout()
+          router.push('/login')
+          ElMessage.error('登录已过期，请重新登录')
+        } else {
+          // 无 token → 直接跳到登录页
+          router.push('/login')
+        }
       } else {
         ElMessage.error(msg || `请求错误 (${resp.status})`)
       }

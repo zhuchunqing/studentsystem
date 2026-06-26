@@ -27,6 +27,8 @@ export function deleteTeacher(id: number): Promise<void> {
   return del<void>(`/teachers/${id}`)
 }
 
-export function getTeacherOptions(): Promise<TeacherOption[]> {
-  return get<TeacherOption[]>('/teachers/options')
+/** 获取教师下拉选项（前端从分页列表中提取） */
+export async function getTeacherOptions(): Promise<TeacherOption[]> {
+  const page = await getTeachers({ pageSize: 999 })
+  return page.list.map(t => ({ id: t.id, name: t.name }))
 }

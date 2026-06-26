@@ -28,6 +28,8 @@ export function deleteCourse(id: number): Promise<void> {
   return del<void>(`/courses/${id}`)
 }
 
-export function getCourseOptions(): Promise<CourseOption[]> {
-  return get<CourseOption[]>('/courses/options')
+/** 获取课程下拉选项（前端从分页列表中提取） */
+export async function getCourseOptions(): Promise<CourseOption[]> {
+  const page = await getCourses({ pageSize: 999 })
+  return page.list.map(c => ({ id: c.id, name: c.name }))
 }

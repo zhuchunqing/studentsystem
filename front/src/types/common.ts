@@ -11,6 +11,7 @@ export interface PageResult<T> {
   total: number
   pageNum: number
   pageSize: number
+  totalPages: number
 }
 
 /** 分页查询参数 */
@@ -33,8 +34,8 @@ export interface LoginResult {
   expiresIn: number
 }
 
-/** 修改密码请求 */
+/** 修改密码请求（后端使用 Query 参数） */
 export interface ChangePasswordRequest {
-  old_password: string
-  new_password: string
+  oldPassword: string
+  newPassword: string
 }

@@ -3,152 +3,195 @@
     <el-card shadow="never">
       <div class="toolbar">
         <el-form :inline="true" :model="queryForm">
-          <el-form-item label="学期">
-            <el-input v-model="queryForm.semester" placeholder="如2024-2025-1" clearable />
-          </el-form-item>
           <el-form-item label="课程">
-            <el-select v-model="queryForm.course_id" placeholder="全部" clearable>
-              <el-option v-for="c in courses" :key="c.id" :label="c.name" :value="c.id" />
+            <el-select v-model="queryForm.courseId" placeholder="请选择课程" clearable filterable style="width:220px" @change="onCourseChange">
+              <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="班级">
-            <el-select v-model="queryForm.class_id" placeholder="全部" clearable>
-              <el-option v-for="cl in classes" :key="cl.id" :label="cl.name" :value="cl.id" />
-            </el-select>
+          <el-form-item label="学期">
+            <el-input v-model="queryForm.semester" placeholder="如2024-2025-1" clearable style="width:160px" @keyup.enter="fetchStatistics" />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="fetchStatistics">查询</el-button>
           </el-form-item>
         </el-form>
-        <el-button type="success" @click="handleExport">导出报表</el-button>
+        <el-button type="success" @click="handleExport" :disabled="!stats">导出报表</el-button>
       </div>
     </el-card>
 
-    <el-row :gutter="20" style="margin-top: 20px">
-      <el-col :span="8">
-        <el-card shadow="hover">
-          <div class="stat-item">
-            <p class="stat-label">平均分</p>
-            <p class="stat-value">{{ stats.average_score }}</p>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card shadow="hover">
-          <div class="stat-item">
-            <p class="stat-label">及格率</p>
-            <p class="stat-value">{{ (stats.pass_rate * 100).toFixed(1) }}%</p>
-          </div>
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card shadow="hover">
-          <div class="stat-item">
-            <p class="stat-label">最高/最低分</p>
-            <p class="stat-value">{{ stats.max_score }} / {{ stats.min_score }}</p>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+    <el-empty v-if="!stats && !loading" description="请先选择课程查看统计数据" />
 
-    <el-row :gutter="20" style="margin-top: 20px">
-      <el-col :span="12">
-        <el-card shadow="hover">
-          <template #header><span>成绩等级分布</span></template>
-          <v-chart :option="gradeOption" style="height: 300px" autoresize />
-        </el-card>
-      </el-col>
-      <el-col :span="12">
-        <el-card shadow="hover">
-          <template #header><span>分数段分布</span></template>
-          <v-chart :option="scoreOption" style="height: 300px" autoresize />
-        </el-card>
-      </el-col>
-    </el-row>
+    <template v-if="stats">
+      <el-row :gutter="20" style="margin-top: 20px">
+        <el-col :span="6">
+          <el-card shadow="hover">
+            <div class="stat-item">
+              <p class="stat-label">平均分</p>
+              <p class="stat-value">{{ stats.averageScore.toFixed(1) }}</p>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="hover">
+            <div class="stat-item">
+              <p class="stat-label">及格率</p>
+              <p class="stat-value">{{ (stats.passRate * 100).toFixed(1) }}%</p>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="hover">
+            <div class="stat-item">
+              <p class="stat-label">最高分</p>
+              <p class="stat-value">{{ stats.maxScore }}</p>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="hover">
+            <div class="stat-item">
+              <p class="stat-label">最低分</p>
+              <p class="stat-value">{{ stats.minScore }}</p>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="20" style="margin-top: 20px">
+        <el-col :span="12">
+          <el-card shadow="hover">
+            <template #header><span>成绩等级分布</span></template>
+            <v-chart :option="gradeOption" style="height: 300px" autoresize />
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <el-card shadow="hover">
+            <template #header><span>基本信息</span></template>
+            <div class="stat-item">
+              <p class="stat-label">统计学生数</p>
+              <p class="stat-value">{{ stats.totalStudents }}</p>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
-import { BarChart, PieChart } from 'echarts/charts'
-import { TitleComponent, TooltipComponent, GridComponent, LegendComponent } from 'echarts/components'
+import { PieChart } from 'echarts/charts'
+import { TitleComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsOption } from 'echarts'
+import { getScoreStatistics, exportScores } from '@/api/score'
+import { getCourses } from '@/api/course'
+import type { CourseOption, ScoreStatistics } from '@/types'
 
-use([BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent, CanvasRenderer])
+use([PieChart, TitleComponent, TooltipComponent, LegendComponent, CanvasRenderer])
 
-interface Option {
-  id: number
-  name: string
-}
+const loading = ref(false)
+const courseOptions = ref<CourseOption[]>([])
 
-interface Statistics {
-  total_students: number
-  average_score: number
-  max_score: number
-  min_score: number
-  pass_rate: number
-  grade_distribution: Record<string, number>
-}
-
-const courses = ref<Option[]>([{ id: 1, name: '高等数学' }, { id: 2, name: '大学英语' }])
-const classes = ref<Option[]>([{ id: 1, name: '2024级计算机1班' }])
-
-const queryForm = reactive({ semester: '2024-2025-1', course_id: undefined as number | undefined, class_id: undefined as number | undefined })
-
-const stats = ref<Statistics>({
-  total_students: 45,
-  average_score: 76.8,
-  max_score: 98,
-  min_score: 32,
-  pass_rate: 0.844,
-  grade_distribution: { A: 8, B: 15, C: 12, D: 7, F: 3 }
+const queryForm = reactive({
+  semester: '',
+  courseId: undefined as number | undefined
 })
 
-const gradeOption = ref<EChartsOption>({
-  tooltip: { trigger: 'item' },
-  series: [{
-    type: 'pie',
-    radius: ['35%', '65%'],
-    data: [
-      { value: 8, name: 'A (90-100)', itemStyle: { color: '#67C23A' } },
-      { value: 15, name: 'B (80-89)', itemStyle: { color: '#409EFF' } },
-      { value: 12, name: 'C (70-79)', itemStyle: { color: '#E6A23C' } },
-      { value: 7, name: 'D (60-69)', itemStyle: { color: '#909399' } },
-      { value: 3, name: 'F (0-59)', itemStyle: { color: '#F56C6C' } }
-    ],
-    label: { formatter: '{b}: {c}人 ({d}%)' }
-  }]
-})
+const stats = ref<ScoreStatistics | null>(null)
 
-const scoreOption = ref<EChartsOption>({
-  tooltip: { trigger: 'axis' },
-  xAxis: {
-    type: 'category',
-    data: ['0-9', '10-19', '20-29', '30-39', '40-49', '50-59', '60-69', '70-79', '80-89', '90-100']
-  },
-  yAxis: { type: 'value' },
-  series: [{
-    type: 'bar',
-    data: [0, 1, 2, 1, 3, 4, 7, 12, 15, 8],
-    itemStyle: {
-      color: (params: { dataIndex: number }) => params.dataIndex < 5 ? '#F56C6C' : '#409EFF'
+const gradeColors: Record<string, string> = {
+  A: '#67C23A', 'A-': '#67C23A',
+  'B+': '#409EFF', B: '#409EFF', 'B-': '#409EFF',
+  'C+': '#E6A23C', C: '#E6A23C', 'C-': '#E6A23C',
+  'D+': '#909399', D: '#909399',
+  F: '#F56C6C'
+}
+
+const gradeOption = computed<EChartsOption>(() => {
+  const dist = stats.value?.gradeDistribution || {}
+  const entries = Object.entries(dist).filter(([, v]) => v > 0)
+  if (entries.length === 0) {
+    return {
+      title: { text: '暂无等级分布数据', left: 'center', top: 'center', textStyle: { fontSize: 14, color: '#909399' } },
+      series: []
     }
-  }]
+  }
+  return {
+    tooltip: { trigger: 'item' },
+    legend: { bottom: '0' },
+    series: [{
+      type: 'pie',
+      radius: ['35%', '65%'],
+      data: entries.map(([key, value]) => ({
+        value,
+        name: `${key}`,
+        itemStyle: { color: gradeColors[key] || '#999' }
+      })),
+      label: { formatter: '{b}: {c}人 ({d}%)' }
+    }]
+  }
 })
 
-function fetchStatistics() {
-  ElMessage.success('已刷新统计数据')
+function onCourseChange() {
+  if (queryForm.courseId) {
+    fetchStatistics()
+  }
 }
 
-function handleExport() {
-  ElMessage.success('报表导出成功')
+async function fetchStatistics() {
+  if (!queryForm.courseId) {
+    ElMessage.warning('请先选择课程')
+    return
+  }
+  loading.value = true
+  try {
+    stats.value = await getScoreStatistics({
+      courseId: queryForm.courseId,
+      semester: queryForm.semester || undefined
+    })
+  } catch {
+    stats.value = null
+  } finally {
+    loading.value = false
+  }
 }
 
-onMounted(fetchStatistics)
+async function handleExport() {
+  if (!queryForm.courseId || !stats.value) {
+    ElMessage.warning('请先查询统计数据')
+    return
+  }
+  try {
+    const blob = await exportScores({
+      courseId: queryForm.courseId,
+      semester: queryForm.semester || undefined
+    })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = '成绩统计报表.xlsx'
+    a.click()
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('报表导出成功')
+  } catch {
+    // error handled in interceptor
+  }
+}
+
+onMounted(async () => {
+  // 加载课程下拉列表
+  const res = await getCourses({ pageSize: 999 })
+  courseOptions.value = res.list.map(c => ({ id: c.id, name: c.name }))
+  // 默认选中第一门课程并加载统计
+  if (courseOptions.value.length > 0) {
+    queryForm.courseId = courseOptions.value[0].id
+    fetchStatistics()
+  }
+})
 </script>
 
 <style scoped>

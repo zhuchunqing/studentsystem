@@ -10,6 +10,7 @@ export function getCourseSelections(params: SelectionQuery): Promise<PageResult<
   return get<PageResult<CourseSelection>>('/course-selections', { params })
 }
 
+/** 获取课程选课学生列表 */
 export function getCourseStudents(courseId: number, params?: PageQuery): Promise<PageResult<CourseSelection>> {
   return get<PageResult<CourseSelection>>(`/courses/${courseId}/selections`, { params })
 }

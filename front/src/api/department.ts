@@ -1,8 +1,9 @@
 import { del, get, post, put } from '@/utils/request'
-import type { Department, DepartmentOption, DepartmentTree } from '@/types'
+import type { Department, DepartmentOption, DepartmentTreeResponse } from '@/types'
 
-export function getDepartments(): Promise<DepartmentTree[]> {
-  return get<DepartmentTree[]>('/departments')
+/** 获取院系树形列表 */
+export function getDepartments(): Promise<DepartmentTreeResponse[]> {
+  return get<DepartmentTreeResponse[]>('/departments')
 }
 
 export function getDepartment(id: number): Promise<Department> {
@@ -21,6 +22,19 @@ export function deleteDepartment(id: number): Promise<void> {
   return del<void>(`/departments/${id}`)
 }
 
-export function getDepartmentOptions(): Promise<DepartmentOption[]> {
-  return get<DepartmentOption[]>('/departments/options')
+/** 扁平化院系树，提取下拉选项 */
+function flattenTree(nodes: DepartmentTreeResponse[], result: DepartmentOption[] = []): DepartmentOption[] {
+  for (const node of nodes) {
+    result.push({ id: node.id, name: node.name })
+    if (node.children?.length) {
+      flattenTree(node.children, result)
+    }
+  }
+  return result
+}
+
+/** 获取院系下拉选项（前端从树形数据中提取） */
+export async function getDepartmentOptions(): Promise<DepartmentOption[]> {
+  const tree = await getDepartments()
+  return flattenTree(tree)
 }
