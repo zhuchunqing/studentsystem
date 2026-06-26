@@ -1,0 +1,25 @@
+# ===== IDE =====
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+.factorypath
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Logs =====
+*.log
+logs/
+boot_err.txt
+boot_out.txt
+
+# ===== Env =====
+.env
+.env.local
